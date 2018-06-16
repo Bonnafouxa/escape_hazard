@@ -36,7 +36,7 @@ global {
 	init{
 		create building from:building_shapefile ;
 		create alea number:1 with:[location::base];
-		create G_point number:1 with:[location::base];
+		ask alea { create G_point with:[location::location]; }
 	}
 }
 
@@ -56,7 +56,7 @@ species G_point {
 	bool natural;
 	float maximal_speed; //Maximal speed of the Alea
 	float zone_influence; //Zone d'influence d'un gravity center
-	list<point> influenced_points ;
+	list<point> influenced_points;
 	
 	init {
 		self_gravity_force <- gravity_force;
@@ -77,20 +77,8 @@ species G_point {
 	/*
 	 * Action that apply action force
 	 */
-	list<point> action_force {
-		list<point> uninfluenced_points;
-		list<point> new_points;
-		point new_p;
-		loop p over:influenced_points{
-			new_p <- (p - location) * gravity_force + p;
-			if(new_p distance_to self > zone_influence){
-				uninfluenced_points <+ new_p;
-			} else {
-				new_points <+ new_p;
-			}
-		}
-		influenced_points <- new_points;
-		return uninfluenced_points;
+	reflex action_force {
+		influenced_points <- influenced_points collect (point(each.location + (each.location - self.location) * gravity_force));
 	}
 	
 	/*
@@ -136,14 +124,10 @@ species alea {
 		list<point> new_points;
 		
 		ask G_point {
-			do action_force returns:u_points; 
-			new_points <<+ influenced_points;
-	
-			add all: u_points to: myself.uninfluenced_points;
-			//myself.uninfluenced_points <<+ list<point>(self.action_force);
 			
-			// remove all: new_points from: myself.uninfluenced_points;
-			//myself.uninfluenced_points >>- influenced_points;
+			add all: influenced_points to:new_points;
+			
+			influenced_points <- influenced_points where (each distance_to self <= zone_influence);
 			
 		}
 		
