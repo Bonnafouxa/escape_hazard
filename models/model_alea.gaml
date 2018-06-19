@@ -20,12 +20,11 @@ global {
 	file building_shapefile <- file("../includes/building.shp");
 
 	geometry shape <- envelope(building_shapefile);
-
-	point base <- any_location_in(shape);
-
+	
 	list<building> obstacles <- (building at_distance 0.001#m); //liste des obstacle du buildings
 	
 	float gravity_force <- 0.001;
+	float zone_influence <- 20#m;
 
 	//couleur de l'aléa
 	rgb color <- °red ;
@@ -35,7 +34,7 @@ global {
 
 	init{
 		create building from:building_shapefile ;
-		create alea number:1 with:[location::base];
+		create alea with:[location::any_location_in(shape)];
 		ask alea { create G_point with:[location::location]; }
 	}
 }
@@ -52,33 +51,17 @@ species building {
 }
 
 species G_point {
-	float self_gravity_force; //force of the gravity center
-	bool natural;
-	float maximal_speed; //Maximal speed of the Alea
-	float zone_influence; //Zone d'influence d'un gravity center
+	float self_gravity_force <- gravity_force; //force of the gravity center
+	bool natural <- true;
+	float maximal_speed <- 10#m; //Maximal speed of the Alea
+	float self_zone_influence <- zone_influence; //Zone d'influence d'un gravity center
 	list<point> influenced_points;
 	
 	init {
-		self_gravity_force <- gravity_force;
-		maximal_speed <- 10#m;
-		natural <- true;
-		zone_influence <- 50#m;
-		
 		loop i over:alea{
-			influenced_points <<+ i.shape.points where (each distance_to self < zone_influence);
+			influenced_points <<+ i.shape.points where (each distance_to self < self_zone_influence);
 		}
-				
-	}
-	
-	
-	//Pour chaque centre de gravités : faire grandir les points sous influence.
-	//Trigger: tout les points 
-	
-	/*
-	 * Action that apply action force
-	 */
-	reflex action_force {
-		influenced_points <- influenced_points collect (point(each.location + (each.location - self.location) * gravity_force));
+		write "Gravity center "+self+" has been created with "+length(influenced_points)+" point to influence";			
 	}
 	
 	/*
@@ -87,6 +70,16 @@ species G_point {
 	 */
 	reflex death when:empty(influenced_points){
 		do die;
+	}
+	
+	//Pour chaque centre de gravités : faire grandir les points sous influence.
+	//Trigger: tout les points 
+	
+	/*
+	 * Action that apply action force
+	 */
+	reflex action_force {
+		influenced_points <- influenced_points collect (point(each + (each - self.location) * self_gravity_force));
 	}
 	
 	
@@ -122,12 +115,19 @@ species alea {
 		*/
 		
 		list<point> new_points;
+		list<point> u_points;
 		
 		ask G_point {
 			
+			// Collect the new points to draw the shape with gravity augmentation
 			add all: influenced_points to:new_points;
 			
-			influenced_points <- influenced_points where (each distance_to self <= zone_influence);
+			// Collect every point that are out of reach of the gravity center
+			u_points <- influenced_points where (each distance_to self > self_zone_influence);
+			// Remove them 
+			remove all: u_points from:influenced_points;
+			// And add them to the list of point for which we need a new gravity center
+			myself.uninfluenced_points <- u_points;
 			
 		}
 		
@@ -151,14 +151,24 @@ species alea {
 		
 		shape <- geometry(new_points);
 
-		
-		//augmentation de l'aléa
 	}
 	
 	reflex add_gravity_point when:not empty(uninfluenced_points){
-		loop p over:uninfluenced_points{
-			create G_point number:1 with:[location::point((closest_to(G_point, p) - p) * coef_distance_new_Gpoint)];
+		write "Create "+length(uninfluenced_points)+" new gravity point";
+		geometry gravity_buffer <- self.shape - buffer(location, zone_influence / 2);
+		loop while:not empty(uninfluenced_points){
+			create G_point with:[location::any_location_in(gravity_buffer)] returns:g_point;
+			remove all:g_point[0].influenced_points from:uninfluenced_points;
 		}
+
+		/* 
+		loop p over:uninfluenced_points{
+			point gp <- p - (p - location) * coef_distance_new_Gpoint;
+			create G_point with:[location::gp];
+		}
+		* 
+		*/
+		
 	}
 	
 	
