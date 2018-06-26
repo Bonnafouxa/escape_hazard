@@ -21,7 +21,7 @@ global {
 
 	geometry shape <- envelope(building_shapefile);
 	
-	list<building> obstacles <- (building at_distance 0.001#m); //liste des obstacle du buildings
+	list<building> obstacles <- (building at_distance 0.001#m); //liste des obstacles du buildings
 	
 	float gravity_force <- 0.001;
 	float zone_influence <- 20#m;
@@ -56,12 +56,14 @@ species G_point {
 	float maximal_speed <- 10#m; //Maximal speed of the Alea
 	float self_zone_influence <- zone_influence; //Zone d'influence d'un gravity center
 	list<point> influenced_points;
+	list<point> building_points;
 	
 	init {
 		loop i over:alea{
 			influenced_points <<+ i.shape.points where (each distance_to self < self_zone_influence);
+	
 		}
-		write "Gravity center "+self+" has been created with "+length(influenced_points)+" point to influence";			
+		//write "Gravity center "+self+" has been created with "+length(influenced_points)+" point to influence";			
 	}
 	
 	/*
@@ -72,20 +74,39 @@ species G_point {
 		do die;
 	}
 	
-	//Pour chaque centre de gravités : faire grandir les points sous influence.
-	//Trigger: tout les points 
 	
 	/*
 	 * Action that apply action force
 	 */
 	reflex action_force {
+		
+		ask building {
+				myself.building_points <- myself.influenced_points where (each distance_to self < 1#m); // ne s'actualise pas ? quand ils touchent le building
+			}
+			
 		influenced_points <- influenced_points collect (point(each + (each - self.location) * self_gravity_force));
+			
 	}
 	
+	reflex building_event when: not empty(building_points){
+		//Quand ils touchent le building séparer en deux points ayant un mouvement opposé le long du building
+		/*
+		 * find the closest building
+		 * define the closest point
+		 * create a new point next to this one and make them move along the building #hard 
+	 	*/
+	 	loop while: not empty(building_points){
+	 		building closest_building <- building closest_to self;
+	// 		point closest_point <- building.shape.points with_min_of(each distance_to self);
+	 	}		
+	}
 	
 	aspect default {
 		draw circle(1) color: #black;
 	}
+	
+
+	
 	
 }
 
@@ -122,54 +143,33 @@ species alea {
 			// Collect the new points to draw the shape with gravity augmentation
 			add all: influenced_points to:new_points;
 			
-			// Collect every point that are out of reach of the gravity center
+			// Collect every point that are out of reach of the gravity center and near to a building
 			u_points <- influenced_points where (each distance_to self > self_zone_influence);
 			// Remove them 
 			remove all: u_points from:influenced_points;
+			remove all: building_points from:influenced_points;
 			// And add them to the list of point for which we need a new gravity center
 			myself.uninfluenced_points <- u_points;
 			
+			
 		}
 		
-		/*
-		//For each point, extend.
-		loop i over:point_alea {
-			
-			//gravity_center <- G_point where (each distance_to i < each.zone_influence);
-			
-			//gestion des obstacles TODO: nouveau réflexe
-			obstacles <- building where (each distance_to i <0.001#m);
-			building closest <-building closest_to (i);
-			if(distance_to(closest,i)<0.01){
-				write(distance_to(closest,i));
-				//remove item:(point_alea index_of i) from:point_alea;	
-			}
-			
-		}
-		* 
-		*/
+
 		
 		shape <- geometry(new_points);
 
 	}
 	
 	reflex add_gravity_point when:not empty(uninfluenced_points){
-		write "Create "+length(uninfluenced_points)+" new gravity point";
-		geometry gravity_buffer <- self.shape - buffer(location, zone_influence / 2);
+		//write "Create "+length(uninfluenced_points)+" new gravity point";
+		geometry gravity_buffer <- self.shape - buffer(location, zone_influence / 1);
 		loop while:not empty(uninfluenced_points){
 			create G_point with:[location::any_location_in(gravity_buffer)] returns:g_point;
-			remove all:g_point[0].influenced_points from:uninfluenced_points;
+			remove all:g_point[0].influenced_points from:uninfluenced_points; //Il faut aussi les enlever aux autres G_points
 		}
-
-		/* 
-		loop p over:uninfluenced_points{
-			point gp <- p - (p - location) * coef_distance_new_Gpoint;
-			create G_point with:[location::gp];
-		}
-		* 
-		*/
-		
 	}
+	
+
 	
 	
 	aspect default {
