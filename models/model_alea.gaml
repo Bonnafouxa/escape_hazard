@@ -17,175 +17,189 @@ model modelalea
 
 global {
 
-	file building_shapefile <- file("../includes/building.shp");
+	file building_shapefile <- shape_file("../includes/building.shp");
+	file scenar1 <- file("../includes/hazard/RedRiver_scnr1.shp");
+	file scenar2 <- file("../includes/hazard/RedRiver_scnr2.shp");
+	file scenar3 <- file("../includes/hazard/RedRiver_scnr3.shp");
+	file scenar4 <- file("../includes/hazard/RedRiver_scnr4.shp");
 
-	geometry shape <- envelope(building_shapefile);
+	geometry shape <- envelope(scenar4);
 	
-	list<building> obstacles <- (building at_distance 0.001#m); //liste des obstacles du buildings
-	
-	float gravity_force <- 0.001;
-	float zone_influence <- 20#m;
+	geometry moving_shape;
+	list<point> starting_points;
 
-	//couleur de l'aléa
-	rgb color <- °red ;
-
-	// Taille de base de l'aléa
-	float taille_base <- 2.5;
 
 	init{
-		create building from:building_shapefile ;
-		create alea with:[location::any_location_in(shape)];
-		ask alea { create G_point with:[location::location]; }
-	}
-}
+			
+			
+			
+			create alea from:scenar1 with:[scenario_number::1, color::#brown];
+			create alea from:scenar2 with:[color::#red, scenario_number::2];
+			create alea from:scenar3 with:[color::#blue, scenario_number::3];
+			create alea from:scenar4 with:[color::#white, scenario_number::4];
+			loop i from:0 to:2 {
+				do init_moving_points(alea[i], alea[i+1]);
+				do init_moving_alea(alea[i]);
+				do create_destination(alea[i]);
+			}	
 
+			starting_points <- alea[3].shape.points;
+			
+			
 
-species building {
-	
-	//Height of the buildings
-	float height <- 3.0 + rnd(5);
-	aspect default {
-		draw shape color: #gray depth: height;
 	}
 	
-}
-
-species G_point {
-	float self_gravity_force <- gravity_force; //force of the gravity center
-	bool natural <- true;
-	float maximal_speed <- 10#m; //Maximal speed of the Alea
-	float self_zone_influence <- zone_influence; //Zone d'influence d'un gravity center
-	list<point> influenced_points;
-	list<point> building_points;
-	
-	init {
-		loop i over:alea{
-			influenced_points <<+ i.shape.points where (each distance_to self < self_zone_influence);
-	
-		}
-		//write "Gravity center "+self+" has been created with "+length(influenced_points)+" point to influence";			
-	}
-	
-	/*
-	 * Die when no more influenced points
-	 * 
-	 */
-	reflex death when:empty(influenced_points){
-		do die;
-	}
-	
-	
-	/*
-	 * Action that apply action force
-	 */
-	reflex action_force {
+	action init_moving_points(alea move_from, alea move_to) {
 		
-		ask building {
-				myself.building_points <- myself.influenced_points where (each distance_to self < 1#m); // ne s'actualise pas ? quand ils touchent le building
+		move_from.points_to_move >>- move_to.shape.points;
+		move_from.points_to_go <- move_to.shape.points;
+		move_from.points_to_go >>- move_from.shape.points ;
+		
+		if (length(move_from.points_to_move)>= length(move_from.points_to_go)){
+		
+			loop i over:move_from.points_to_go {
+				move_from.moving_to[closest_to(move_from.points_to_move,i)]<-i;
 			}
 			
-		influenced_points <- influenced_points collect (point(each + (each - self.location) * self_gravity_force));
+		} else {
 			
+			loop i over:move_from.points_to_move {
+				move_from.moving_to[i]<-closest_to(move_from.points_to_go,i);
+			}
+			
+			list<point> point_to_go_without_from <- move_from.points_to_go;
+			point_to_go_without_from >>- move_from.moving_to.keys;
+			loop i over: point_to_go_without_from {
+				point new_point_to_move <- closest_points_with(i,move_from.shape)[1];
+				move_from.moving_to[new_point_to_move] <- i;
+				move_from.points_to_move <+ new_point_to_move;
+			}
+			
+		}
 	}
 	
-	reflex building_event when: not empty(building_points){
-		//Quand ils touchent le building séparer en deux points ayant un mouvement opposé le long du building
-		/*
-		 * find the closest building
-		 * define the closest point
-		 * create a new point next to this one and make them move along the building #hard 
-	 	*/
-	 	loop while: not empty(building_points){
-	 		building closest_building <- building closest_to self;
-	// 		point closest_point <- building.shape.points with_min_of(each distance_to self);
-	 	}		
+	action create_destination(alea alea_from){
+		loop i over:alea_from.moving_to {
+			create destination_finale with:[location::i];
+		}
 	}
+	
+	action init_moving_alea(alea alea_from){
+		loop i over:alea_from.shape.points {
+			if(alea_from.points_to_move contains i){
+				create X_point with:[location::i,p_destination::alea_from.moving_to[i],moveX::true]{
+					alea_from.the_points <+ self;
+				}
+			} else {
+				create X_point with:[location::i]{
+					alea_from.the_points <+ self;
+				}
+			}
+		}
+	}
+}
+
+species X_point skills:[moving] {
+	
+	float the_speed <- 10#km/#h;
+	point p_destination;
+	bool moveX <- false;
+	bool alea_moving <- false;
 	
 	aspect default {
-		draw circle(1) color: #black;
+		draw geometry:circle(10#m) color:moveX ? #black : #green;
 	}
 	
-
 	
+	reflex move_to_next_location when: moveX and alea_moving {
+		do goto target:p_destination speed:the_speed;
+	}
 	
 }
 
 
-species alea {
+species alea skills: [moving] {
+	list<point> points_to_move;
+	list<point> points_to_go;
+	map<point,point> moving_to;
+	point point_to_move;
+	point point_to_go;
+	rgb color;
+	int scenario_number;
+	bool moved <- false;
 	
-	// Calculer le nombre de centre qui régissent le point
-    // 1) Son centre naturel + Centre d'aléa
+	list<X_point> the_points;
+	list<X_point> the_list;
 	
-	//fonction d'évolution de l'aléa
-	
-	//forme de l'aléa
-	geometry shape <- circle(taille_base#m) ;
-	
-	float coef_distance_new_Gpoint <- 0.01;
-	
-	list<point> uninfluenced_points;
-	
-	//Calcul des centres de gravités pour chaque points
-	//avance selon un vecteur.  
-	//Création des centres de gravité auxiliaire pour les obstacles
-	reflex alea_grow {
-		/* 
-		list<point> point_alea <- shape.points;
-		point calcul_distance;
-		* 
-		*/
-		
-		list<point> new_points;
-		list<point> u_points;
-		
-		ask G_point {
-			
-			// Collect the new points to draw the shape with gravity augmentation
-			add all: influenced_points to:new_points;
-			
-			// Collect every point that are out of reach of the gravity center and near to a building
-			u_points <- influenced_points where (each distance_to self > self_zone_influence);
-			// Remove them 
-			remove all: u_points from:influenced_points;
-			remove all: building_points from:influenced_points;
-			// And add them to the list of point for which we need a new gravity center
-			myself.uninfluenced_points <- u_points;
-			
-			
-		}
-		
+	init{
+		points_to_move <- shape.points;
+	}
 
-		
-		shape <- geometry(new_points);
-
+	reflex move_to {
+		shape <- geometry(the_points collect each.location);
 	}
 	
-	reflex add_gravity_point when:not empty(uninfluenced_points){
-		//write "Create "+length(uninfluenced_points)+" new gravity point";
-		geometry gravity_buffer <- self.shape - buffer(location, zone_influence / 1);
-		loop while:not empty(uninfluenced_points){
-			create G_point with:[location::any_location_in(gravity_buffer)] returns:g_point;
-			remove all:g_point[0].influenced_points from:uninfluenced_points; //Il faut aussi les enlever aux autres G_points
+	reflex first_good_timing when:scenario_number=1{
+		bool acc <-true;
+		the_list<- the_points where (each.moveX);
+		if(scenario_number = 1){
+			loop i over:the_list {			
+				if(distance_to(i.location,i.p_destination) > 10#m){
+					acc <- false;	
+				}
+				i.alea_moving <-true;
+			}
+			moved <- acc;
 		}
 	}
 	
+	reflex good_timing when:scenario_number != 1 and alea[(scenario_number-2)].moved {
+		bool acc <-true;
+		the_list<- the_points where (each.moveX);
+		loop i over:the_list {
+			if(distance_to(i.location,i.p_destination) > 10#m){
+				acc <- false;
+			}
+			i.alea_moving <-true;
+		}
+		moved <- acc;
+	}
+	
+	
+	reflex bad_timing when:scenario_number != 1 and !(alea[(scenario_number-2)].moved){
+		loop i over:the_points {
+				i.alea_moving <- false;
+		}
+	}
 
-	
-	
 	aspect default {
 		draw shape color:color;
 	}
+	
 }
+	
+species destination_finale skills:[moving] {
+	
+	aspect default {
+		draw geometry:circle(10#m) color:#red;
+	}
+}
+
+
+
+
+
 
 
 
 experiment main type:gui {
-	parameter gravity_force var:gravity_force;
+	float minimum_cycle_duration <- 0.1; 
 	output{
 		display map type:opengl {
-			species building refresh:false aspect:default;
-			species alea aspect:default refresh:true ;
-			species G_point aspect:default 		;}
+			species alea aspect:default refresh:true transparency:0.6;
+			species X_point aspect:default refresh:true;
+			//species destination_finale aspect:default refresh:true;
+			}
 	}	
 }
 
