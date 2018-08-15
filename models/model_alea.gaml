@@ -28,7 +28,6 @@ global {
 	geometry moving_shape;
 	list<point> starting_points;
 
-
 	init{
 			
 			
@@ -40,13 +39,9 @@ global {
 			loop i from:0 to:2 {
 				do init_moving_points(alea[i], alea[i+1]);
 				do init_moving_alea(alea[i]);
-				do create_destination(alea[i]);
 			}	
 
 			starting_points <- alea[3].shape.points;
-			
-			
-
 	}
 	
 	action init_moving_points(alea move_from, alea move_to) {
@@ -78,12 +73,6 @@ global {
 		}
 	}
 	
-	action create_destination(alea alea_from){
-		loop i over:alea_from.moving_to {
-			create destination_finale with:[location::i];
-		}
-	}
-	
 	action init_moving_alea(alea alea_from){
 		loop i over:alea_from.shape.points {
 			if(alea_from.points_to_move contains i){
@@ -102,6 +91,7 @@ global {
 species X_point skills:[moving] {
 	
 	float the_speed <- 10#km/#h;
+	float the_duration <- 1#h;
 	point p_destination;
 	bool moveX <- false;
 	bool alea_moving <- false;
@@ -112,6 +102,8 @@ species X_point skills:[moving] {
 	
 	
 	reflex move_to_next_location when: moveX and alea_moving {
+		write ( distance_to(self,self.p_destination));
+		the_speed <- distance_to(self,self.p_destination)#km/the_duration;
 		do goto target:p_destination speed:the_speed;
 	}
 	
@@ -178,14 +170,6 @@ species alea skills: [moving] {
 	
 }
 	
-species destination_finale skills:[moving] {
-	
-	aspect default {
-		draw geometry:circle(10#m) color:#red;
-	}
-}
-
-
 
 
 
@@ -198,7 +182,6 @@ experiment main type:gui {
 		display map type:opengl {
 			species alea aspect:default refresh:true transparency:0.6;
 			species X_point aspect:default refresh:true;
-			//species destination_finale aspect:default refresh:true;
 			}
 	}	
 }
