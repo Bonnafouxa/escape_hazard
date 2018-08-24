@@ -109,8 +109,6 @@ species alea skills: [moving] {
 		points_to_move >>- move_to.shape.points;
 		points_to_go <- move_to.shape.points;
 		points_to_go >>- shape.points;
-		write length(points_to_move);
-		write length(points_to_go);
 		
 		if (length(points_to_move)>= length(points_to_go)){
 			loop i over:points_to_go {
@@ -124,12 +122,14 @@ species alea skills: [moving] {
 			
 			list<point> point_to_go_without_from <- points_to_go;
 			point_to_go_without_from >>- moving_to.keys;
+			write length(point_to_go_without_from);
 			
 			loop i over: point_to_go_without_from {
 				point new_point_to_move <- closest_points_with(i,shape)[1];
 				moving_to[new_point_to_move] <- i;
 				points_to_move <+ new_point_to_move;
 			}
+			write length(points_to_move);
 		}
 
 		write length(moving_to);
