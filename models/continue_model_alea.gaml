@@ -9,29 +9,25 @@ model continuemodelalea
 
 global {
 
-	file building_shapefile <- shape_file("../../includes/building.shp");
+	file building_shapefile <- shape_file("../includes/building.shp");
 	geometry shape <- envelope(building_shapefile);
 	point base <- any_location_in(shape);
 	float epsilon <- 1#cm;
-	float delta;
+	float delta; //update:log(delta);
 	
 	init {
 		create building from:building_shapefile;
 		create alea with:[location::base];
 		ask alea{
 			do init_moving_alea;
-			write length(shape.points);
 			float average;
 			loop i from:1 to:length(shape.points)-1{
-				write i;
 				average <- average + distance_to(shape.points[i],shape.points[i-1]);
 			}
 			delta <- average/length(shape.points);
 		}
-		
 	}
 	
-
 	
 }
 
@@ -68,7 +64,7 @@ species X_point skills:[moving] {
 	bool moveX <- false;
 	
 	aspect default {
-		draw geometry:circle(5#dm) color:moveX ? #black : #green;
+		draw geometry:circle(5#dm) color:moveX ? #black : #purple;
 	}
 	
 
@@ -81,6 +77,10 @@ species X_point skills:[moving] {
 	reflex stop_moving when: 
 		location.x < 0 or location.y < 0 or
 		location.x > world.shape.width or location.y > world.shape.height {
+		if(location.x <0){location <- {0,location.y};}
+		if(location.y <0){location <- {location.x,0};}
+		if(location.x >world.shape.width){location <- {world.shape.width,location.y};}
+		if(location.y >world.shape.height){location <- {location.x,world.shape.height};}
 		moveX <- false;
 	}
 }
@@ -142,43 +142,23 @@ species alea {
 	}
 	
 	reflex create_X_point {
+		
+		int acc<-0;
+		list<X_point> intermediaire <- points_to_extend;
 		loop i from:1 to:length(points_to_extend)-1{
-			point light <- points_to_extend[i].location;
-			point light2 <- points_to_extend[i-1].location;
-			if (distance_to(light,light2)>delta){
-				create X_point with:[location::(light+light2)/2, moveX::true,hazard::self]{
-					myself.points_to_extend[i] +<- self;
+			X_point light <- points_to_extend[i];
+			X_point light2 <- points_to_extend[i-1];
+			if (distance_to(light.location,light2.location)>delta){
+				create X_point with:[location::(light.location+light2.location)/2, moveX::true,hazard::self]{
+				intermediaire[i+acc] <+ self;
+				acc <- acc+1;
+				write acc;
 				}
 			}
 		}
+		points_to_extend <- intermediaire;
 	} 
 	
-	/*
-	 * 	reflex touch_my_big_building {
-		list<point> points_in;
-		ask building {
-			points_in <- shape.points where(myself overlaps (each));
-			loop i over:points_in{
-				if(myself.map_obstacle[self]=nil){
-					create B_point with:[location::i];
-					myself.map_obstacle <+ self::[last(B_point)];
-				} else {
-					//write "look there";
-					//write myself.map_obstacle[self] where (each.location=i);
-					if((myself.map_obstacle[self] where (each.location=i))=nil){
-						create B_point with:[location::i];
-						myself.map_obstacle[self] <+ last(B_point);
-					} else {
-						
-					}
-				}
-				
-				
-			}
-		}
-		write map_obstacle;
-	}
-	 */
 	
 
 	
