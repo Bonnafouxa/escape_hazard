@@ -1,4 +1,4 @@
-/**
+ /**
 * Name: continuemodelalea
 * Author: eisti
 * Description: 
@@ -143,20 +143,23 @@ species alea {
 	
 	reflex create_X_point {
 		
-		int acc<-0;
-		list<X_point> intermediaire <- points_to_extend;
+		int acc;
 		loop i from:1 to:length(points_to_extend)-1{
-			X_point light <- points_to_extend[i];
-			X_point light2 <- points_to_extend[i-1];
-			if (distance_to(light.location,light2.location)>delta){
-				create X_point with:[location::(light.location+light2.location)/2, moveX::true,hazard::self]{
-				intermediaire[i+acc] <+ self;
-				acc <- acc+1;
-				write acc;
+			int updated_i <- i + acc;
+			
+			point light <- points_to_extend[updated_i].location;
+			point light2 <- points_to_extend[updated_i-1].location;
+			
+			float distance <- distance_to(light,light2);
+			
+			if (distance > delta){
+				point the_location <- (light+light2)/2;
+				create X_point with:[location::the_location, moveX::true, hazard::self]{
+					myself.points_to_extend[updated_i] +<- self;
+					acc <- acc + 1;
 				}
 			}
 		}
-		points_to_extend <- intermediaire;
 	} 
 	
 	
