@@ -26,6 +26,29 @@ global {
 			}
 			delta <- average/length(shape.points);
 		}
+		
+		// Init grid
+		loop times:10{
+			geometry mount <- circle(10#m, any_location_in(shape));
+			float high <- rnd(10.0,60.0)#m;
+			float decrease <- high * 1 / 40;
+			ground center_cell <- ground(mount.location);
+			
+			list<ground> concerned_cells <- [center_cell];
+			list<ground> visited_cells <- [];
+			loop while: high > 1 {
+				list<ground> new_cells <- [];
+				loop i over:concerned_cells{
+					i.grid_value <- i.grid_value + high;
+					i.color <- rgb(255,255-255*i.grid_value/60,255);
+					new_cells <<+ i.neighbors;
+				}
+				high <- high - decrease;
+				visited_cells <<+ concerned_cells;
+				concerned_cells <- remove_duplicates(new_cells) - visited_cells;
+			} 
+		}
+		
 	}
 	
 	
@@ -160,11 +183,7 @@ species alea {
  * When altitude of next cell is less than actual cell, the point will speed up and if it is
  * the contrary, it will slow down
  */
-grid the_ground width:200 height:200 {
-	
-	init {
-		grid_value <- rnd(-10.0,30.0);
-	}
+grid ground width:200 height:200 neighbors:6{
 	
 }
 
@@ -172,6 +191,7 @@ experiment main type:gui {
 	float minimum_cycle_duration <- 0.5; 
 	output{
 		display map type:opengl {
+			grid ground;
 			species alea aspect:default refresh:true;
 			species building aspect:default refresh:false transparency:0.5;
 			species X_point aspect:default ;
