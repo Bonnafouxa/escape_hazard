@@ -37,18 +37,7 @@ species obstacle {
 	
 }
 
-species building parent:obstacle{
-	
-	/* 
-	action create_B_point(list<point> points_in){
-		loop i over:points_in{
-			create B_point with:[location::i];
-		}
-		
-	}
-	* 
-	*/
-	
+species building parent:obstacle{	
 		
  	aspect default {
  		draw shape color: #black depth:height;
@@ -66,8 +55,6 @@ species X_point skills:[moving] {
 	aspect default {
 		draw geometry:circle(5#dm) color:moveX ? #black : #purple;
 	}
-	
-
 	
 	reflex move_to_next_location when: moveX{
 		p_destination <- (location - hazard.location) +location;
@@ -100,7 +87,7 @@ species alea {
 	map<building,list<B_point>> map_obstacle;
 	
 	init {
-		 shape <- circle(10#m);
+		shape <- circle(10#m);
 	}
 	
 	action init_moving_alea{
@@ -162,15 +149,24 @@ species alea {
 		}
 	} 
 	
-	
-
-	
 	aspect default {
 		draw shape color:#blue;
 	}
 	
 }
 
+/*
+ * TODO: make alea great again, with movement dependent on grid value (altitude).
+ * When altitude of next cell is less than actual cell, the point will speed up and if it is
+ * the contrary, it will slow down
+ */
+grid the_ground width:200 height:200 {
+	
+	init {
+		grid_value <- rnd(-10.0,30.0);
+	}
+	
+}
 
 experiment main type:gui {
 	float minimum_cycle_duration <- 0.5; 
