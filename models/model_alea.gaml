@@ -129,15 +129,16 @@ species alea skills: [moving] {
 				moving_to[new_point_to_move] <- i;
 				points_to_move <+ new_point_to_move;
 			}
+			write "points_to_move";
 			write length(points_to_move);
 		}
-
+		write "moving_to";
 		write length(moving_to);
 	}
 	
 	
 	reflex update_X_point when: length(X_point where (distance_to(each.p_destination,each.location)<5#m))=length(points_to_move){
-		write "slt";
+		write "slt kevin";
 		scenario_number <- scenario_number +1;
 		ask X_point {
 			do die;
@@ -148,6 +149,7 @@ species alea skills: [moving] {
 
 	reflex move_to {
 		shape <- geometry(the_points collect each.location);
+		write "condition";
 		write length(X_point where (distance_to(each.p_destination,each.location)<5#m));
 	}
 	
