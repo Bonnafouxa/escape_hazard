@@ -24,12 +24,12 @@ global {
 	file scenar4 <- file("../includes/hazard/RedRiver_scnr4.shp");
 
 	geometry shape <- envelope(scenar4);
+	
+	float threshold_dist <- 10#nm;
+	
+	// Display purpose attribute
 	geometry current_scenario;
-	
 	list<point> points_to_go;
-	
-	geometry moving_shape;
-	list<point> starting_points;
 
 	init{
 		
@@ -78,21 +78,28 @@ species X_point skills:[moving] {
 species alea skills: [moving] {
 	
 	scenario the_scenario;
+	bool update_cycle <- false;
 	
 	rgb color;
 	
 	list<X_point> the_points;
 	
-	/*
-	 * Update destination and X point
-	 */
-	reflex update_scenario when: empty(X_point where each.moveX) {
-		
+	reflex update_scenario when: empty(X_point where each.moveX){
 		current_scenario <- the_scenario.get_next_step();
 		
 		if(current_scenario = nil){
-			ask world {do pause;}
+			ask world {
+				do pause;
+			}
+		} else {
+			update_cycle <- true;
 		}
+	}
+	
+	/*
+	 * Update destination and X point
+	 */
+	reflex update_points when: update_cycle {
 		
 		list<point> points_to_move <- remove_duplicates(shape.points);
 		map<point,point> moving_to;
@@ -101,6 +108,7 @@ species alea skills: [moving] {
 		points_to_go <- remove_duplicates(current_scenario.points);
 		points_to_go >>- shape.points;
 		
+		// Define origin and destination
 		if (length(points_to_move) >= length(points_to_go)){
 			loop i over:points_to_go {
 				moving_to[closest_to(points_to_move,i)]<-i;
@@ -123,45 +131,40 @@ species alea skills: [moving] {
 			}
 		}
 		
-		list<point> the_p <- X_point collect (each.location);
-		list<point> the_x_points <- remove_duplicates(the_p);
-		map<point, list<point>> the_duplicates;
-		loop p over:the_p{
-			if(the_duplicates.keys contains p){
-				the_duplicates[p] <+ p;
+		// Create and/or update X_point according to origin and destination
+		loop p over:points_to_move{
+			// list<X_point> xps <- X_point where (each.location = p); SEE THAT WITH BENOIT AND PATRICK
+			list<X_point> xps <- X_point where (each.location distance_to p < threshold_dist);
+			point dest <- moving_to[p];
+			float dist <- distance_to(p, dest);
+			float appointment <- the_scenario.get_next_date() - current_date;
+			if(empty(xps)){
+				create X_point {
+					moveX <- true;
+					location <- p;
+					p_destination <- dest;
+					the_speed <- dist#m/appointment#s;
+					myself.the_points <+ self;
+				}
 			} else {
-				the_duplicates[p] <- [p];
+				X_point upX;
+				if(length(xps)>1){
+					write "There is several x point at one location";
+					loop i from:1 to:length(xps) {
+						ask xps[i] {
+							myself.the_points >- self;
+							do die;
+						}
+					}
+				}
+				upX <- first(xps);
+				upX.moveX <- true;
+				upX.p_destination <- dest;
+				upX.the_speed <- dist#m/appointment#s;
 			}
 		}
 		
-		
-		write "Nb of non duplicates equals to "+length(the_duplicates)+" | full = "+length(the_p)+" & no-duplicate = "+length(the_x_points);
-		write the_duplicates;
-		
-		write "the nb of points to move: "+length(points_to_move);
-		
-		ask X_point where (points_to_move contains each.location) {
-			moveX <- true;
-			p_destination <- moving_to[location];
-			the_speed <- distance_to(location,p_destination)#m/(myself.the_scenario.get_next_date() - current_date)#s;
-			points_to_move >- location;
-		}
-		
-		write "the nb of points to create: "+length(points_to_move);
-		write "Basic X_points "+length(X_point);
-		
-		loop i over:points_to_move{
-			create X_point {
-				moveX <- true;
-				location <- i;
-				p_destination <- moving_to[i];
-				the_speed <- distance_to(location,p_destination)#m/(myself.the_scenario.get_next_date() - current_date)#s;
-				myself.the_points <+ self;
-			}
-		}
-		
-		write "New X_points "+length(X_point);
-		
+		update_cycle <- false;
 	}
 
 	/*
